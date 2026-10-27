@@ -5,7 +5,7 @@ and Microsoft Entra tenant: your people sign in with their work accounts, and yo
 documents stay in your tenant. This repository holds the deployment template and
 the released application packages.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fgithub.com%2Fuludwig%2Ffindable-deploy%2Freleases%2Flatest%2Fdownload%2FmainTemplate.json/createUIDefinitionUri/https%3A%2F%2Fgithub.com%2Fuludwig%2Ffindable-deploy%2Freleases%2Flatest%2Fdownload%2FcreateUiDefinition.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fuludwig%2Ffindable-deploy%2Fmain%2FmainTemplate.json/createUIDefinitionUri/https%3A%2F%2Fraw.githubusercontent.com%2Fuludwig%2Ffindable-deploy%2Fmain%2FcreateUiDefinition.json)
 
 ## What the template creates
 
@@ -42,4 +42,7 @@ support@findable.net
 
 Every release carries `mainTemplate.json`, `createUiDefinition.json`, the
 application package `findable-<version>.zip` and the Partner Center upload
-`findable-marketplace-<version>.zip`. The button above always deploys the latest.
+`findable-marketplace-<version>.zip`. The `mainTemplate.json` and
+`createUiDefinition.json` at the root of this repository are the latest release's
+copies (the Azure portal reads the template from this repository, not from the
+release assets), so the button above always deploys the latest release.

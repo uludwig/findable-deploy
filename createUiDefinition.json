@@ -1,0 +1,264 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "config": {
+      "isWizard": true,
+      "basics": {
+        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Choose a region where Azure OpenAI models are offered.",
+        "resourceGroup": {
+          "allowExisting": true
+        },
+        "location": {
+          "visible": true,
+          "resourceTypes": [
+            "Microsoft.Web/sites",
+            "Microsoft.DocumentDB/databaseAccounts",
+            "Microsoft.Search/searchServices",
+            "Microsoft.CognitiveServices/accounts",
+            "Microsoft.Storage/storageAccounts",
+            "Microsoft.OperationalInsights/workspaces",
+            "Microsoft.Insights/dataCollectionEndpoints",
+            "Microsoft.Insights/dataCollectionRules"
+          ]
+        }
+      }
+    },
+    "basics": [
+      {
+        "name": "baseName",
+        "type": "Microsoft.Common.TextBox",
+        "label": "Deployment name",
+        "subLabel": "The seed for every resource name",
+        "toolTip": "3 to 17 lowercase letters and digits. The web app is https://<name>.azurewebsites.net, and the storage account, Cosmos DB account, search service and AI accounts take it as their prefix.",
+        "defaultValue": "",
+        "placeholder": "findable",
+        "constraints": {
+          "required": true,
+          "regex": "^[a-z0-9]{3,17}$",
+          "validationMessage": "Use 3 to 17 lowercase letters and digits with no other characters."
+        },
+        "visible": true
+      },
+      {
+        "name": "nameNote",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": true,
+        "options": {
+          "icon": "Info",
+          "text": "The name must be unique across Azure for the web app, the Cosmos DB account and the search service. If the deployment fails on a name conflict, choose another name and deploy again."
+        }
+      }
+    ],
+    "steps": [
+      {
+        "name": "sizing",
+        "label": "Size",
+        "elements": [
+          {
+            "name": "sizePreset",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Size preset",
+            "defaultValue": "Trial",
+            "toolTip": "Trial runs on a B1 App Service, Basic AI Search and Basic-plan logs: the cheapest set that runs Findable end to end. Production runs on P1v3, Standard search with the semantic ranker and Analytics-plan logs with configurable retention.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Trial",
+                  "description": "B1 App Service, Basic AI Search, model capacity 10 (chat) and 50 (embedding), 30-day Basic logs. For a 30-day trial or a small pilot.",
+                  "value": "trial"
+                },
+                {
+                  "label": "Production",
+                  "description": "P1v3 App Service, Standard AI Search with the semantic ranker, model capacity 50 and 120, Analytics-plan logs.",
+                  "value": "production"
+                }
+              ],
+              "required": true
+            },
+            "visible": true
+          },
+          {
+            "name": "logRetentionDays",
+            "type": "Microsoft.Common.Slider",
+            "label": "Log retention (days)",
+            "subLabel": "days",
+            "defaultValue": 90,
+            "min": 30,
+            "max": 730,
+            "showStepMarkers": false,
+            "toolTip": "How long the Analytics-plan tables keep Findable's logs. Basic-plan tables (Trial) keep 30 days.",
+            "constraints": {
+              "required": true
+            },
+            "visible": "[equals(steps('sizing').sizePreset, 'production')]"
+          },
+          {
+            "name": "costNote",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Info",
+              "text": "Azure charges for these resources on this subscription, separately from the Findable license. Cosmos DB is serverless and Storage is standard tier in both presets."
+            }
+          }
+        ]
+      },
+      {
+        "name": "models",
+        "label": "AI models",
+        "elements": [
+          {
+            "name": "modelsNote",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": true,
+            "options": {
+              "icon": "Info",
+              "text": "The models deploy on an Azure AI Foundry account in the chosen region. Availability varies by region: if a model is not offered where you deploy, switch its deployment off here and add a model endpoint afterwards in Admin > Models."
+            }
+          },
+          {
+            "name": "deployChatModel",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Deploy a chat model",
+            "defaultValue": true,
+            "toolTip": "Off leaves Findable without a chat model until an administrator adds an endpoint in Admin > Models.",
+            "visible": true
+          },
+          {
+            "name": "chatModel",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Chat model",
+            "defaultValue": "gpt-5.6",
+            "toolTip": "The Azure OpenAI model name as the Foundry catalog lists it.",
+            "constraints": {
+              "required": true,
+              "regex": "^[A-Za-z0-9._-]{1,64}$",
+              "validationMessage": "A model name: letters, digits, dots, dashes and underscores."
+            },
+            "visible": "[steps('models').deployChatModel]"
+          },
+          {
+            "name": "chatModelVersion",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Chat model version (optional)",
+            "defaultValue": "",
+            "toolTip": "Leave empty to take the account's default version for the model.",
+            "constraints": {
+              "required": false,
+              "regex": "^[A-Za-z0-9._-]{0,64}$",
+              "validationMessage": "A version label: letters, digits, dots, dashes and underscores."
+            },
+            "visible": "[steps('models').deployChatModel]"
+          },
+          {
+            "name": "deployEmbeddingModel",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Deploy an embedding model",
+            "defaultValue": true,
+            "toolTip": "Indexing and retrieval need an embedding model. Off leaves it for Admin > Models.",
+            "visible": true
+          },
+          {
+            "name": "embeddingModel",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Embedding model",
+            "defaultValue": "text-embedding-3-small",
+            "toolTip": "text-embedding-3-small is the default; text-embedding-3-large costs more per token and indexes slower.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "text-embedding-3-small",
+                  "value": "text-embedding-3-small"
+                },
+                {
+                  "label": "text-embedding-3-large",
+                  "value": "text-embedding-3-large"
+                }
+              ],
+              "required": true
+            },
+            "visible": "[steps('models').deployEmbeddingModel]"
+          },
+          {
+            "name": "embeddingModelVersion",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Embedding model version (optional)",
+            "defaultValue": "",
+            "toolTip": "Leave empty to take the account's default version for the model.",
+            "constraints": {
+              "required": false,
+              "regex": "^[A-Za-z0-9._-]{0,64}$",
+              "validationMessage": "A version label: letters, digits, dots, dashes and underscores."
+            },
+            "visible": "[steps('models').deployEmbeddingModel]"
+          }
+        ]
+      },
+      {
+        "name": "license",
+        "label": "License",
+        "elements": [
+          {
+            "name": "licenseKey",
+            "type": "Microsoft.Common.PasswordBox",
+            "label": {
+              "password": "License key",
+              "confirmPassword": "Confirm license key"
+            },
+            "toolTip": "The key from your Findable welcome email (it starts with FNDL1). Leave it empty to enter it on the License page after the first sign-in; the installation does not run until a valid key is entered. Keys and renewals: support@findable.net.",
+            "constraints": {
+              "required": false,
+              "regex": "^(FNDL1\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+)?$",
+              "validationMessage": "A Findable license key reads FNDL1.<payload>.<signature>; paste the whole key."
+            },
+            "options": {
+              "hideConfirmation": true
+            },
+            "visible": true
+          },
+          {
+            "name": "licenseNote",
+            "type": "Microsoft.Common.TextBlock",
+            "visible": true,
+            "options": {
+              "text": "Every trial is 30 days. The key is verified by the application, never sent to Findable, and can be replaced on the License page at any time."
+            }
+          }
+        ]
+      },
+      {
+        "name": "afterwards",
+        "label": "After the deployment",
+        "elements": [
+          {
+            "name": "nextSteps",
+            "type": "Microsoft.Common.TextBlock",
+            "visible": true,
+            "options": {
+              "text": "When the deployment finishes, open https://<deployment name>.azurewebsites.net/#/start. The first-run page connects Findable to your Microsoft Entra tenant (two app registrations and the administrators group) and finishes the setup. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
+              "link": {
+                "label": "Findable documentation",
+                "uri": "https://www.findable.net"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+      "baseName": "[basics('baseName')]",
+      "sizePreset": "[steps('sizing').sizePreset]",
+      "logRetentionDays": "[int(coalesce(steps('sizing').logRetentionDays, 90))]",
+      "deployChatModel": "[steps('models').deployChatModel]",
+      "chatModel": "[coalesce(steps('models').chatModel, 'gpt-5.6')]",
+      "chatModelVersion": "[coalesce(steps('models').chatModelVersion, '')]",
+      "deployEmbeddingModel": "[steps('models').deployEmbeddingModel]",
+      "embeddingModel": "[coalesce(steps('models').embeddingModel, 'text-embedding-3-small')]",
+      "embeddingModelVersion": "[coalesce(steps('models').embeddingModelVersion, '')]",
+      "licenseKey": "[coalesce(steps('license').licenseKey, '')]"
+    }
+  }
+}
