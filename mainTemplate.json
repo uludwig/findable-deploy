@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "4523708464146528964"
+      "templateHash": "15718841027159486779"
     }
   },
   "parameters": {
@@ -79,7 +79,7 @@
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.4/findable-3.3.4.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.5/findable-3.3.5.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
@@ -155,8 +155,6 @@
     "cosmosDatabaseName": "findable",
     "searchName": "[format('{0}search-{1}', parameters('baseName'), variables('tail'))]",
     "foundryName": "[format('{0}-models-{1}', parameters('baseName'), variables('tail'))]",
-    "aiServicesName": "[format('{0}multiservice-{1}', parameters('baseName'), variables('tail'))]",
-    "docIntelName": "[format('{0}di-{1}', parameters('baseName'), variables('tail'))]",
     "workspaceName": "[format('{0}-logs', parameters('baseName'))]",
     "dceName": "[format('{0}-dce', parameters('baseName'))]",
     "dcrName": "[format('{0}-dcr', parameters('baseName'))]",
@@ -248,8 +246,7 @@
     ],
     "foundryEndpoint": "[format('https://{0}.services.ai.azure.com', variables('foundryName'))]",
     "searchEndpoint": "[format('https://{0}.search.windows.net', variables('searchName'))]",
-    "aiServicesEndpoint": "[format('https://{0}.cognitiveservices.azure.com', variables('aiServicesName'))]",
-    "docIntelEndpoint": "[format('https://{0}.cognitiveservices.azure.com', variables('docIntelName'))]"
+    "foundryToolsEndpoint": "[format('https://{0}.cognitiveservices.azure.com', variables('foundryName'))]"
   },
   "resources": [
     {
@@ -442,44 +439,6 @@
         "[resourceId('Microsoft.CognitiveServices/accounts/deployments', variables('foundryName'), parameters('chatModel'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', variables('foundryName'))]"
       ]
-    },
-    {
-      "type": "Microsoft.CognitiveServices/accounts",
-      "apiVersion": "2024-10-01",
-      "name": "[variables('aiServicesName')]",
-      "location": "[parameters('location')]",
-      "tags": "[parameters('tags')]",
-      "kind": "CognitiveServices",
-      "sku": {
-        "name": "S0"
-      },
-      "identity": {
-        "type": "SystemAssigned"
-      },
-      "properties": {
-        "customSubDomainName": "[variables('aiServicesName')]",
-        "disableLocalAuth": true,
-        "publicNetworkAccess": "Enabled"
-      }
-    },
-    {
-      "type": "Microsoft.CognitiveServices/accounts",
-      "apiVersion": "2024-10-01",
-      "name": "[variables('docIntelName')]",
-      "location": "[parameters('location')]",
-      "tags": "[parameters('tags')]",
-      "kind": "FormRecognizer",
-      "sku": {
-        "name": "S0"
-      },
-      "identity": {
-        "type": "SystemAssigned"
-      },
-      "properties": {
-        "customSubDomainName": "[variables('docIntelName')]",
-        "disableLocalAuth": true,
-        "publicNetworkAccess": "Enabled"
-      }
     },
     {
       "type": "Microsoft.OperationalInsights/workspaces",
@@ -675,36 +634,6 @@
     {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
-      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), resourceId('Microsoft.Web/sites', variables('appName')), variables('roles').cognitiveServicesUser)]",
-      "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').cognitiveServicesUser)]",
-        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId]",
-        "principalType": "ServicePrincipal"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
-        "[resourceId('Microsoft.Web/sites', variables('appName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
-      "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]",
-      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), resourceId('Microsoft.Web/sites', variables('appName')), variables('roles').cognitiveServicesUser)]",
-      "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').cognitiveServicesUser)]",
-        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId]",
-        "principalType": "ServicePrincipal"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]",
-        "[resourceId('Microsoft.Web/sites', variables('appName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
       "name": "[guid(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), resourceId('Microsoft.Web/sites', variables('appName')), variables('roles').cosmosDbOperator)]",
       "properties": {
@@ -764,21 +693,6 @@
     {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]",
-      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), resourceId('Microsoft.Search/searchServices', variables('searchName')), variables('roles').cognitiveServicesUser)]",
-      "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').cognitiveServicesUser)]",
-        "principalId": "[reference(resourceId('Microsoft.Search/searchServices', variables('searchName')), '2023-11-01', 'full').identity.principalId]",
-        "principalType": "ServicePrincipal"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]",
-        "[resourceId('Microsoft.Search/searchServices', variables('searchName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2022-04-01",
       "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('foundryName'))]",
       "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('foundryName')), resourceId('Microsoft.Search/searchServices', variables('searchName')), variables('roles').cognitiveServicesUser)]",
       "properties": {
@@ -795,7 +709,7 @@
       "type": "Microsoft.Web/sites/config",
       "apiVersion": "2024-04-01",
       "name": "[format('{0}/{1}', variables('appName'), 'appsettings')]",
-      "properties": "[union(createObject('NODE_ENV', 'production', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'WEBSITE_NODE_DEFAULT_VERSION', '~24', 'FINDABLE_BASE_URL', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName), 'TENANT_ID', subscription().tenantId, 'FINDABLE_WEB_PRINCIPAL_ID', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId, 'FINDABLE_LICENSE_REQUIRED', if(parameters('licenseRequired'), 'true', 'false'), 'FINDABLE_LICENSE_KEY', parameters('licenseKey'), 'AZURE_COSMOS_ENDPOINT', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, 'AZURE_COSMOS_DB', variables('cosmosDatabaseName'), 'AZURE_COSMOS_AUTH_TYPE', 'managedSystemIdentity', 'AZURE_COSMOS_RESOURCE_ID', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), 'AZURE_STORAGE_ENDPOINT', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, 'AZURE_STORAGE_RESOURCE_ID', resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), 'AZURE_STORAGE_CONTAINER_NAME', variables('blobContainerName'), 'AZURE_SEARCH_ENDPOINT', variables('searchEndpoint'), 'AZURE_AI_ENDPOINT', variables('foundryEndpoint'), 'AZURE_AI_MODEL', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING', parameters('embeddingModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING_MODEL_NAME', parameters('embeddingModel'), 'AZURE_AI_SERVICES_ENDPOINT', variables('aiServicesEndpoint'), 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', variables('docIntelEndpoint'), 'AZURE_MONITOR_LOGGING_ENABLED', 'true', 'AZURE_MONITOR_DCE_ENDPOINT', reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName')), '2023-03-11').logsIngestion.endpoint, 'AZURE_MONITOR_DCR_RULE_ID', reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')), '2023-03-11').immutableId, 'AZURE_MONITOR_STREAM_NAME', variables('logStreamName')), if(empty(parameters('packageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('packageUrl'))))]",
+      "properties": "[union(createObject('NODE_ENV', 'production', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'WEBSITE_NODE_DEFAULT_VERSION', '~24', 'FINDABLE_BASE_URL', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName), 'TENANT_ID', subscription().tenantId, 'FINDABLE_WEB_PRINCIPAL_ID', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId, 'FINDABLE_LICENSE_REQUIRED', if(parameters('licenseRequired'), 'true', 'false'), 'FINDABLE_LICENSE_KEY', parameters('licenseKey'), 'AZURE_COSMOS_ENDPOINT', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, 'AZURE_COSMOS_DB', variables('cosmosDatabaseName'), 'AZURE_COSMOS_AUTH_TYPE', 'managedSystemIdentity', 'AZURE_COSMOS_RESOURCE_ID', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), 'AZURE_STORAGE_ENDPOINT', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, 'AZURE_STORAGE_RESOURCE_ID', resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), 'AZURE_STORAGE_CONTAINER_NAME', variables('blobContainerName'), 'AZURE_SEARCH_ENDPOINT', variables('searchEndpoint'), 'AZURE_AI_ENDPOINT', variables('foundryEndpoint'), 'AZURE_AI_MODEL', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING', parameters('embeddingModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING_MODEL_NAME', parameters('embeddingModel'), 'AZURE_AI_SERVICES_ENDPOINT', variables('foundryToolsEndpoint'), 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', variables('foundryToolsEndpoint'), 'AZURE_MONITOR_LOGGING_ENABLED', 'true', 'AZURE_MONITOR_DCE_ENDPOINT', reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName')), '2023-03-11').logsIngestion.endpoint, 'AZURE_MONITOR_DCR_RULE_ID', reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')), '2023-03-11').immutableId, 'AZURE_MONITOR_STREAM_NAME', variables('logStreamName')), if(empty(parameters('packageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('packageUrl'))))]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
         "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName'))]",
@@ -830,13 +744,9 @@
       "type": "string",
       "value": "[variables('foundryEndpoint')]"
     },
-    "aiServicesEndpoint": {
+    "foundryToolsEndpoint": {
       "type": "string",
-      "value": "[variables('aiServicesEndpoint')]"
-    },
-    "documentIntelligenceEndpoint": {
-      "type": "string",
-      "value": "[variables('docIntelEndpoint')]"
+      "value": "[variables('foundryToolsEndpoint')]"
     },
     "storageBlobEndpoint": {
       "type": "string",

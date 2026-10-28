@@ -47,7 +47,7 @@
         "visible": true,
         "options": {
           "icon": "Info",
-          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the AI accounts) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The region is checked against Azure as you type: a region that lacks one of the AI accounts shows an error below."
+          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The region is checked against Azure as you type: a region that lacks the Azure AI Foundry account shows an error below."
         }
       },
       {
@@ -56,24 +56,6 @@
         "request": {
           "method": "GET",
           "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/skus?api-version=2024-10-01')]"
-        }
-      },
-      {
-        "name": "docIntelRegionError",
-        "type": "Microsoft.Common.InfoBox",
-        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'FormRecognizer'), equals(s.name, 'S0'), contains(map(s.locations, (l) => toLower(l)), toLower(location()))))), 0))]",
-        "options": {
-          "icon": "Error",
-          "text": "[concat('Document Intelligence (S0) is not offered in ', location(), '. The deployment would fail: choose a region that offers it.')]"
-        }
-      },
-      {
-        "name": "aiServicesRegionError",
-        "type": "Microsoft.Common.InfoBox",
-        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'CognitiveServices'), equals(s.name, 'S0'), contains(map(s.locations, (l) => toLower(l)), toLower(location()))))), 0))]",
-        "options": {
-          "icon": "Error",
-          "text": "[concat('The Azure AI services multi-service account (S0) is not offered in ', location(), '. The deployment would fail: choose a region that offers it.')]"
         }
       },
       {
