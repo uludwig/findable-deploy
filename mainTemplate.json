@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "15718841027159486779"
+      "templateHash": "16667739425274670693"
     }
   },
   "parameters": {
@@ -79,7 +79,7 @@
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.6/findable-3.3.6.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.7/findable-3.3.7.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
@@ -762,7 +762,7 @@
     },
     "nextStep": {
       "type": "string",
-      "value": "[format('Open {0}/#/start to connect the Entra tenant (the two app registrations) and finish the setup wizard. Role assignments can take up to ten minutes to apply.', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName))]"
+      "value": "[format('Open https://{0} : the site opens its first-run page, which connects the Entra tenant (the two app registrations) and finishes the setup. Role assignments can take up to ten minutes to apply.', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName)]"
     }
   }
 }

@@ -6,12 +6,14 @@
     "config": {
       "isWizard": true,
       "basics": {
-        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Pick the region below; every resource is created there, whatever region the resource group has. Choose one where the Azure AI Foundry models you want are offered.",
+        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Pick the Region below; every resource is created there, whatever region the resource group has (the resource group region above is only where the group record lives). Choose one where the Azure AI Foundry models you want are offered.",
         "resourceGroup": {
           "allowExisting": true
         },
         "location": {
-          "visible": false
+          "label": "Resource group region",
+          "toolTip": "Where the resource group record lives. A new resource group is created here; an existing one keeps its own. The Findable resources go to the Region chosen below, which can differ.",
+          "visible": true
         }
       }
     },
@@ -37,7 +39,15 @@
         "visible": true,
         "options": {
           "icon": "Info",
-          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The region is checked against Azure as you pick it: a region that lacks the Azure AI Foundry account shows an error below."
+          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The Region list offers only the regions where this subscription can create the Azure AI Foundry account the install needs; the checks on the next tabs tell you when a region lacks something else."
+        }
+      },
+      {
+        "name": "cognitiveSkusApi",
+        "type": "Microsoft.Solutions.ArmApiControl",
+        "request": {
+          "method": "GET",
+          "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/skus?api-version=2024-10-01')]"
         }
       },
       {
@@ -52,29 +62,21 @@
         "name": "region",
         "type": "Microsoft.Common.DropDown",
         "label": "Region",
-        "toolTip": "The Azure region every Findable resource is created in. It is independent of the resource group's region, so a redeploy into an existing group can still pick any region. The checks below and on the next tabs tell you when the region lacks something the install needs.",
+        "toolTip": "The Azure region every Findable resource is created in. Only the regions where this subscription can create an Azure AI Foundry account (kind AIServices, S0) are listed, because the install needs one. It is independent of the resource group region above, so a redeploy into an existing group can still pick any region; the checks on the next tabs tell you when a region lacks something else.",
         "filter": true,
         "constraints": {
           "required": true,
-          "allowedValues": "[map(filter(basics('regionsApi').value, (r) => equals(r.metadata.regionType, 'Physical')), (r) => parse(concat('{\"label\":\"', r.displayName, '\",\"value\":\"', r.name, '\"}')))]"
+          "allowedValues": "[map(filter(basics('regionsApi').value, (r) => and(equals(r.metadata.regionType, 'Physical'), or(empty(basics('cognitiveSkusApi').value), contains(map(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), empty(s.restrictions))), (s) => toLower(first(s.locations))), toLower(r.name))))), (r) => parse(concat('{\"label\":\"', r.displayName, '\",\"value\":\"', r.name, '\"}')))]"
         },
         "visible": true
       },
       {
-        "name": "cognitiveSkusApi",
-        "type": "Microsoft.Solutions.ArmApiControl",
-        "request": {
-          "method": "GET",
-          "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/skus?api-version=2024-10-01')]"
-        }
-      },
-      {
-        "name": "foundryRegionError",
+        "name": "foundryNoRegionError",
         "type": "Microsoft.Common.InfoBox",
-        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), contains(map(s.locations, (l) => toLower(l)), toLower(basics('region')))))), 0))]",
+        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(map(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), empty(s.restrictions))), (s) => toLower(first(s.locations)))), 0))]",
         "options": {
           "icon": "Error",
-          "text": "[concat('Azure AI Foundry accounts (S0) are not offered in ', basics('region'), '. The deployment would fail: choose a region that offers them.')]"
+          "text": "This subscription cannot create an Azure AI Foundry account (kind AIServices, S0) in any region, and Findable needs one, so the Region list is empty and the deployment would fail wherever it ran. A Free Trial, Azure for Students or a similar offer cannot create Azure OpenAI or Foundry accounts, and Azure may not yet have opened them to a brand-new subscription or tenant (https://aka.ms/locationineligible). Pick another subscription in the Subscription field above (the list refreshes for it), upgrade this one to pay-as-you-go, or ask Microsoft support for Azure AI Foundry access (Help + support, Service and subscription limits (quotas), Cognitive Services) and start this wizard again."
         }
       }
     ],
@@ -283,7 +285,7 @@
             "type": "Microsoft.Common.TextBlock",
             "visible": true,
             "options": {
-              "text": "When the deployment finishes, open the address in the deployment's webAppUrl output followed by /#/start (https://<deployment name>-<7-character suffix>.azurewebsites.net/#/start; the nextStep output carries the full link). The first-run page connects Findable to your Microsoft Entra tenant (two app registrations and the administrators group) and finishes the setup. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
+              "text": "When the deployment finishes, open the address in the deployment's webAppUrl output (Outputs on the deployment page: https://<deployment name>-<7-character suffix>.azurewebsites.net). The site opens its first-run page by itself, which connects Findable to your Microsoft Entra tenant (two app registrations and the administrators group) and finishes the setup. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
               "link": {
                 "label": "Findable documentation",
                 "uri": "https://www.findable.net"
