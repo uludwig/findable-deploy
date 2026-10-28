@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "16313989562985452899"
+      "templateHash": "4523708464146528964"
     }
   },
   "parameters": {
@@ -14,7 +14,7 @@
       "minLength": 3,
       "maxLength": 17,
       "metadata": {
-        "description": "Lowercase letters and digits, 3 to 17 characters; the seed for every resource name (the storage account adds 7 characters and must stay under 24)."
+        "description": "Lowercase letters and digits, 3 to 17 characters; the seed for every resource name. Every name that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the three AI accounts) adds a 7-character suffix computed from the resource group and this name, so two installs never collide; the plan, the logging resources and the workbook keep the bare name."
       }
     },
     "location": {
@@ -35,18 +35,25 @@
         "description": "trial: B1 App Service, Basic search, Basic-plan logs. production: P1v3, Standard search with the semantic ranker, Analytics-plan logs."
       }
     },
+    "semanticRanker": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Enable the semantic ranker on the search service (free on trial, standard on production). Switch off in a region that does not offer it; the service is created without it and queries run without reranking."
+      }
+    },
     "chatModel": {
       "type": "string",
-      "defaultValue": "gpt-5.6",
+      "defaultValue": "gpt-5.6-terra",
       "metadata": {
-        "description": "Chat model to deploy on the Foundry account. Empty, or deployChatModel false, skips it and the admin adds a model endpoint in Admin > Models."
+        "description": "Chat model to deploy on the Foundry account, by its catalog name: the GPT-5.6 family is gpt-5.6-sol, gpt-5.6-terra and gpt-5.6-luna, the GPT-6 family gpt-6-sol, gpt-6-luna and gpt-6.1-terra (there is no base gpt-5.6; the account refuses it with DeploymentModelNotSupported). Empty, or deployChatModel false, skips it and the admin adds a model endpoint in Admin > Models."
       }
     },
     "chatModelVersion": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Version of the chat model. Empty takes the account's default version for the model."
+        "description": "Version of the chat model. Empty takes the account's default version for the model. The wizard does not ask; a CLI install may set it."
       }
     },
     "deployChatModel": {
@@ -60,26 +67,19 @@
       "type": "string",
       "defaultValue": "text-embedding-3-small",
       "metadata": {
-        "description": "Embedding model to deploy for indexing and retrieval."
+        "description": "Embedding model to deploy for indexing and retrieval. Always deployed; the wizard does not ask and keeps the default."
       }
     },
     "embeddingModelVersion": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
-        "description": "Version of the embedding model. Empty takes the account's default version."
-      }
-    },
-    "deployEmbeddingModel": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Deploy the embedding model."
+        "description": "Version of the embedding model. Empty takes the account's default version. The wizard does not ask; a CLI install may set it."
       }
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.3/findable-3.3.3.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.4/findable-3.3.4.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
@@ -147,15 +147,16 @@
       }
     ],
     "suffix": "[toLower(uniqueString(resourceGroup().id, parameters('baseName')))]",
-    "storageName": "[toLower(format('{0}{1}', parameters('baseName'), take(variables('suffix'), 7)))]",
+    "tail": "[take(variables('suffix'), 7)]",
+    "storageName": "[toLower(format('{0}{1}', parameters('baseName'), variables('tail')))]",
     "planName": "[format('{0}-plan', parameters('baseName'))]",
-    "appName": "[parameters('baseName')]",
-    "cosmosName": "[format('{0}db', parameters('baseName'))]",
+    "appName": "[format('{0}-{1}', parameters('baseName'), variables('tail'))]",
+    "cosmosName": "[format('{0}db-{1}', parameters('baseName'), variables('tail'))]",
     "cosmosDatabaseName": "findable",
-    "searchName": "[format('{0}search', parameters('baseName'))]",
-    "foundryName": "[format('{0}-models', parameters('baseName'))]",
-    "aiServicesName": "[format('{0}multiservice', parameters('baseName'))]",
-    "docIntelName": "[format('{0}di', parameters('baseName'))]",
+    "searchName": "[format('{0}search-{1}', parameters('baseName'), variables('tail'))]",
+    "foundryName": "[format('{0}-models-{1}', parameters('baseName'), variables('tail'))]",
+    "aiServicesName": "[format('{0}multiservice-{1}', parameters('baseName'), variables('tail'))]",
+    "docIntelName": "[format('{0}di-{1}', parameters('baseName'), variables('tail'))]",
     "workspaceName": "[format('{0}-logs', parameters('baseName'))]",
     "dceName": "[format('{0}-dce', parameters('baseName'))]",
     "dcrName": "[format('{0}-dcr', parameters('baseName'))]",
@@ -386,7 +387,7 @@
         "replicaCount": 1,
         "partitionCount": 1,
         "hostingMode": "default",
-        "semanticSearch": "[variables('preset').semanticSearch]",
+        "semanticSearch": "[if(parameters('semanticRanker'), variables('preset').semanticSearch, 'disabled')]",
         "disableLocalAuth": true,
         "publicNetworkAccess": "enabled"
       }
@@ -427,7 +428,6 @@
       ]
     },
     {
-      "condition": "[and(parameters('deployEmbeddingModel'), not(empty(parameters('embeddingModel'))))]",
       "type": "Microsoft.CognitiveServices/accounts/deployments",
       "apiVersion": "2024-10-01",
       "name": "[format('{0}/{1}', variables('foundryName'), parameters('embeddingModel'))]",
@@ -795,7 +795,7 @@
       "type": "Microsoft.Web/sites/config",
       "apiVersion": "2024-04-01",
       "name": "[format('{0}/{1}', variables('appName'), 'appsettings')]",
-      "properties": "[union(createObject('NODE_ENV', 'production', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'WEBSITE_NODE_DEFAULT_VERSION', '~24', 'FINDABLE_BASE_URL', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName), 'TENANT_ID', subscription().tenantId, 'FINDABLE_WEB_PRINCIPAL_ID', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId, 'FINDABLE_LICENSE_REQUIRED', if(parameters('licenseRequired'), 'true', 'false'), 'FINDABLE_LICENSE_KEY', parameters('licenseKey'), 'AZURE_COSMOS_ENDPOINT', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, 'AZURE_COSMOS_DB', variables('cosmosDatabaseName'), 'AZURE_COSMOS_AUTH_TYPE', 'managedSystemIdentity', 'AZURE_COSMOS_RESOURCE_ID', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), 'AZURE_STORAGE_ENDPOINT', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, 'AZURE_STORAGE_RESOURCE_ID', resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), 'AZURE_STORAGE_CONTAINER_NAME', variables('blobContainerName'), 'AZURE_SEARCH_ENDPOINT', variables('searchEndpoint'), 'AZURE_AI_ENDPOINT', variables('foundryEndpoint'), 'AZURE_AI_MODEL', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING', if(parameters('deployEmbeddingModel'), parameters('embeddingModel'), ''), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING_MODEL_NAME', if(parameters('deployEmbeddingModel'), parameters('embeddingModel'), ''), 'AZURE_AI_SERVICES_ENDPOINT', variables('aiServicesEndpoint'), 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', variables('docIntelEndpoint'), 'AZURE_MONITOR_LOGGING_ENABLED', 'true', 'AZURE_MONITOR_DCE_ENDPOINT', reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName')), '2023-03-11').logsIngestion.endpoint, 'AZURE_MONITOR_DCR_RULE_ID', reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')), '2023-03-11').immutableId, 'AZURE_MONITOR_STREAM_NAME', variables('logStreamName')), if(empty(parameters('packageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('packageUrl'))))]",
+      "properties": "[union(createObject('NODE_ENV', 'production', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'WEBSITE_NODE_DEFAULT_VERSION', '~24', 'FINDABLE_BASE_URL', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName), 'TENANT_ID', subscription().tenantId, 'FINDABLE_WEB_PRINCIPAL_ID', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId, 'FINDABLE_LICENSE_REQUIRED', if(parameters('licenseRequired'), 'true', 'false'), 'FINDABLE_LICENSE_KEY', parameters('licenseKey'), 'AZURE_COSMOS_ENDPOINT', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, 'AZURE_COSMOS_DB', variables('cosmosDatabaseName'), 'AZURE_COSMOS_AUTH_TYPE', 'managedSystemIdentity', 'AZURE_COSMOS_RESOURCE_ID', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), 'AZURE_STORAGE_ENDPOINT', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, 'AZURE_STORAGE_RESOURCE_ID', resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), 'AZURE_STORAGE_CONTAINER_NAME', variables('blobContainerName'), 'AZURE_SEARCH_ENDPOINT', variables('searchEndpoint'), 'AZURE_AI_ENDPOINT', variables('foundryEndpoint'), 'AZURE_AI_MODEL', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT', if(parameters('deployChatModel'), parameters('chatModel'), ''), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING', parameters('embeddingModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING_MODEL_NAME', parameters('embeddingModel'), 'AZURE_AI_SERVICES_ENDPOINT', variables('aiServicesEndpoint'), 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', variables('docIntelEndpoint'), 'AZURE_MONITOR_LOGGING_ENABLED', 'true', 'AZURE_MONITOR_DCE_ENDPOINT', reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName')), '2023-03-11').logsIngestion.endpoint, 'AZURE_MONITOR_DCR_RULE_ID', reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')), '2023-03-11').immutableId, 'AZURE_MONITOR_STREAM_NAME', variables('logStreamName')), if(empty(parameters('packageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('packageUrl'))))]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
         "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName'))]",

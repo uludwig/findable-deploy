@@ -6,7 +6,7 @@
     "config": {
       "isWizard": true,
       "basics": {
-        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Choose a region where Azure OpenAI models are offered.",
+        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Choose a region where the Azure AI Foundry models you want are offered.",
         "resourceGroup": {
           "allowExisting": true
         },
@@ -31,7 +31,7 @@
         "type": "Microsoft.Common.TextBox",
         "label": "Deployment name",
         "subLabel": "The seed for every resource name",
-        "toolTip": "3 to 17 lowercase letters and digits. The web app is https://<name>.azurewebsites.net, and the storage account, Cosmos DB account, search service and AI accounts take it as their prefix.",
+        "toolTip": "3 to 17 lowercase letters and digits. Every resource is named after it; the web app, the storage account, the Cosmos DB account, the search service and the AI accounts add a 7-character suffix so the name stays unique across Azure (the web app becomes https://<name>-<suffix>.azurewebsites.net; the deployment's webAppUrl output has the exact address).",
         "defaultValue": "",
         "placeholder": "findable",
         "constraints": {
@@ -47,7 +47,42 @@
         "visible": true,
         "options": {
           "icon": "Info",
-          "text": "The name must be unique across Azure for the web app, the Cosmos DB account and the search service. If the deployment fails on a name conflict, choose another name and deploy again."
+          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the AI accounts) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The region is checked against Azure as you type: a region that lacks one of the AI accounts shows an error below."
+        }
+      },
+      {
+        "name": "cognitiveSkusApi",
+        "type": "Microsoft.Solutions.ArmApiControl",
+        "request": {
+          "method": "GET",
+          "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/skus?api-version=2024-10-01')]"
+        }
+      },
+      {
+        "name": "docIntelRegionError",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'FormRecognizer'), equals(s.name, 'S0'), contains(map(s.locations, (l) => toLower(l)), toLower(location()))))), 0))]",
+        "options": {
+          "icon": "Error",
+          "text": "[concat('Document Intelligence (S0) is not offered in ', location(), '. The deployment would fail: choose a region that offers it.')]"
+        }
+      },
+      {
+        "name": "aiServicesRegionError",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'CognitiveServices'), equals(s.name, 'S0'), contains(map(s.locations, (l) => toLower(l)), toLower(location()))))), 0))]",
+        "options": {
+          "icon": "Error",
+          "text": "[concat('The Azure AI services multi-service account (S0) is not offered in ', location(), '. The deployment would fail: choose a region that offers it.')]"
+        }
+      },
+      {
+        "name": "foundryRegionError",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), contains(map(s.locations, (l) => toLower(l)), toLower(location()))))), 0))]",
+        "options": {
+          "icon": "Error",
+          "text": "[concat('Azure AI Foundry accounts (S0) are not offered in ', location(), '. The deployment would fail: choose a region that offers them.')]"
         }
       }
     ],
@@ -77,6 +112,31 @@
               ],
               "required": true
             },
+            "visible": true
+          },
+          {
+            "name": "webRegionsApi",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "[concat(subscription().id, '/providers/Microsoft.Web/geoRegions?sku=', if(equals(steps('sizing').sizePreset, 'production'), 'PremiumV3', 'Basic'), '&linuxWorkersEnabled=true&api-version=2023-12-01')]"
+            }
+          },
+          {
+            "name": "webRegionError",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[and(not(empty(steps('sizing').webRegionsApi.value)), not(contains(map(steps('sizing').webRegionsApi.value, (r) => replace(toLower(r.name), ' ', '')), toLower(location()))))]",
+            "options": {
+              "icon": "Error",
+              "text": "[concat('The ', if(equals(steps('sizing').sizePreset, 'production'), 'P1v3', 'B1'), ' Linux App Service tier is not offered in ', location(), '. The deployment would fail: choose the other preset or another region.')]"
+            }
+          },
+          {
+            "name": "semanticRanker",
+            "type": "Microsoft.Common.CheckBox",
+            "label": "Semantic ranker on the search service",
+            "defaultValue": true,
+            "toolTip": "Reranks search results with the semantic ranker (free tier on Trial, standard on Production). Azure offers it in most regions but not all, and there is no way to check before deploying: if the deployment fails creating the search service, switch this off and deploy again.",
             "visible": true
           },
           {
@@ -115,7 +175,23 @@
             "visible": true,
             "options": {
               "icon": "Info",
-              "text": "The models deploy on an Azure AI Foundry account in the chosen region. Availability varies by region: if a model is not offered where you deploy, switch its deployment off here and add a model endpoint afterwards in Admin > Models."
+              "text": "The models deploy on an Azure AI Foundry account in the chosen region: the chat model named here and text-embedding-3-small for indexing and retrieval. Availability varies by region: if the chat model is not offered where you deploy, pick another, or switch its deployment off and add a model endpoint afterwards in Admin > Models."
+            }
+          },
+          {
+            "name": "regionModelsApi",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/locations/', location(), '/models?api-version=2024-10-01')]"
+            }
+          },
+          {
+            "name": "regionUsagesApi",
+            "type": "Microsoft.Solutions.ArmApiControl",
+            "request": {
+              "method": "GET",
+              "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/locations/', location(), '/usages?api-version=2024-10-01')]"
             }
           },
           {
@@ -130,69 +206,47 @@
             "name": "chatModel",
             "type": "Microsoft.Common.TextBox",
             "label": "Chat model",
-            "defaultValue": "gpt-5.6",
-            "toolTip": "The Azure OpenAI model name as the Foundry catalog lists it.",
+            "defaultValue": "gpt-5.6-terra",
+            "toolTip": "The model name as the Azure AI Foundry catalog lists it. GPT-5.6 is a family: gpt-5.6-terra (balanced, the default), gpt-5.6-sol (strongest reasoning) or gpt-5.6-luna (fastest); GPT-6 is gpt-6-sol, gpt-6-luna or gpt-6.1-terra. A bare gpt-5.6 is not a catalog name and is refused.",
             "constraints": {
               "required": true,
               "regex": "^[A-Za-z0-9._-]{1,64}$",
-              "validationMessage": "A model name: letters, digits, dots, dashes and underscores."
-            },
-            "visible": "[steps('models').deployChatModel]"
-          },
-          {
-            "name": "chatModelVersion",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Chat model version (optional)",
-            "defaultValue": "",
-            "toolTip": "Leave empty to take the account's default version for the model.",
-            "constraints": {
-              "required": false,
-              "regex": "^[A-Za-z0-9._-]{0,64}$",
-              "validationMessage": "A version label: letters, digits, dots, dashes and underscores."
-            },
-            "visible": "[steps('models').deployChatModel]"
-          },
-          {
-            "name": "deployEmbeddingModel",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Deploy an embedding model",
-            "defaultValue": true,
-            "toolTip": "Indexing and retrieval need an embedding model. Off leaves it for Admin > Models.",
-            "visible": true
-          },
-          {
-            "name": "embeddingModel",
-            "type": "Microsoft.Common.DropDown",
-            "label": "Embedding model",
-            "defaultValue": "text-embedding-3-small",
-            "toolTip": "text-embedding-3-small is the default; text-embedding-3-large costs more per token and indexes slower.",
-            "constraints": {
-              "allowedValues": [
+              "validationMessage": "A model name: letters, digits, dots, dashes and underscores.",
+              "validations": [
                 {
-                  "label": "text-embedding-3-small",
-                  "value": "text-embedding-3-small"
-                },
-                {
-                  "label": "text-embedding-3-large",
-                  "value": "text-embedding-3-large"
+                  "isValid": "[or(not(steps('models').deployChatModel), empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, steps('models').chatModel), contains(map(m.model.skus, (s) => s.name), 'GlobalStandard')))), 0))]",
+                  "message": "[concat(steps('models').chatModel, ' is not offered as a GlobalStandard deployment in ', location(), '. Pick a model the region offers, another region, or switch the chat deployment off.')]"
                 }
-              ],
-              "required": true
+              ]
             },
-            "visible": "[steps('models').deployEmbeddingModel]"
+            "visible": "[steps('models').deployChatModel]"
           },
           {
-            "name": "embeddingModelVersion",
-            "type": "Microsoft.Common.TextBox",
-            "label": "Embedding model version (optional)",
-            "defaultValue": "",
-            "toolTip": "Leave empty to take the account's default version for the model.",
-            "constraints": {
-              "required": false,
-              "regex": "^[A-Za-z0-9._-]{0,64}$",
-              "validationMessage": "A version label: letters, digits, dots, dashes and underscores."
-            },
-            "visible": "[steps('models').deployEmbeddingModel]"
+            "name": "chatQuotaWarning",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[and(steps('models').deployChatModel, and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, concat('OpenAI.GlobalStandard.', steps('models').chatModel)), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 50, 10))))), 0)))]",
+            "options": {
+              "icon": "Warning",
+              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 50, 10), 'K tokens per minute of GlobalStandard quota left for ', steps('models').chatModel, ' in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry, pick another model or region, or switch the chat deployment off.')]"
+            }
+          },
+          {
+            "name": "embeddingRegionError",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[and(not(empty(steps('models').regionModelsApi.value)), not(greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)))]",
+            "options": {
+              "icon": "Error",
+              "text": "[concat('text-embedding-3-small is not offered as a Standard deployment in ', location(), '. Findable needs it for indexing and retrieval: choose another region.')]"
+            }
+          },
+          {
+            "name": "embeddingQuotaWarning",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, 'OpenAI.Standard.text-embedding-3-small'), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 120, 50))))), 0))]",
+            "options": {
+              "icon": "Warning",
+              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 120, 50), 'K tokens per minute of Standard quota left for text-embedding-3-small in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry or choose another region.')]"
+            }
           }
         ]
       },
@@ -237,7 +291,7 @@
             "type": "Microsoft.Common.TextBlock",
             "visible": true,
             "options": {
-              "text": "When the deployment finishes, open https://<deployment name>.azurewebsites.net/#/start. The first-run page connects Findable to your Microsoft Entra tenant (two app registrations and the administrators group) and finishes the setup. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
+              "text": "When the deployment finishes, open the address in the deployment's webAppUrl output followed by /#/start (https://<deployment name>-<7-character suffix>.azurewebsites.net/#/start; the nextStep output carries the full link). The first-run page connects Findable to your Microsoft Entra tenant (two app registrations and the administrators group) and finishes the setup. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
               "link": {
                 "label": "Findable documentation",
                 "uri": "https://www.findable.net"
@@ -253,12 +307,9 @@
       "sizePreset": "[steps('sizing').sizePreset]",
       "logRetentionDays": "[int(coalesce(steps('sizing').logRetentionDays, 90))]",
       "deployChatModel": "[steps('models').deployChatModel]",
-      "chatModel": "[coalesce(steps('models').chatModel, 'gpt-5.6')]",
-      "chatModelVersion": "[coalesce(steps('models').chatModelVersion, '')]",
-      "deployEmbeddingModel": "[steps('models').deployEmbeddingModel]",
-      "embeddingModel": "[coalesce(steps('models').embeddingModel, 'text-embedding-3-small')]",
-      "embeddingModelVersion": "[coalesce(steps('models').embeddingModelVersion, '')]",
-      "licenseKey": "[coalesce(steps('license').licenseKey, '')]"
+      "chatModel": "[coalesce(steps('models').chatModel, 'gpt-5.6-terra')]",
+      "licenseKey": "[coalesce(steps('license').licenseKey, '')]",
+      "semanticRanker": "[steps('sizing').semanticRanker]"
     }
   }
 }

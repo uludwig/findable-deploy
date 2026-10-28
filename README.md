@@ -24,13 +24,13 @@ license is separate.
 ## Steps
 
 1. Click **Deploy to Azure** and sign in to the Azure portal with an account that can create resources in the subscription. The person who finishes the setup afterwards must be able to create app registrations in the Entra tenant (Application Administrator or Global Administrator).
-2. Pick the subscription, a resource group and a region where Azure OpenAI models are offered, and a deployment name.
-3. Choose the size and the models, then create. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
-4. Open `https://<deployment name>.azurewebsites.net/#/start` and follow the first-run page to connect your Entra tenant and finish the setup.
+2. Pick the subscription, a resource group and a region where the Azure AI Foundry models you want are offered, and a deployment name.
+3. Choose the size and the models, then create. The wizard checks the names and the region against Azure as you go: a taken name or a model the region does not offer is refused on the field, a missing service or App Service tier shows an error box, and a quota shortfall shows a warning. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
+4. Open the deployment's `webAppUrl` output followed by `/#/start` (`https://<deployment name>-<7 characters>.azurewebsites.net/#/start`; the suffix keeps the name unique across Azure) and follow the first-run page to connect your Entra tenant and finish the setup.
 
 ## Requirements
 
-- An Azure subscription with quota for Azure OpenAI in the chosen region.
+- An Azure subscription in the Azure public cloud (Azure Government and Azure China are not supported) with Azure AI Foundry model quota in the chosen region.
 - A Microsoft Entra tenant; the first-run page creates two app registrations and an administrators group.
 - A Findable license key for use beyond the 30-day trial: see https://www.findable.net/pricing.
 
