@@ -285,7 +285,7 @@
             "type": "Microsoft.Common.TextBlock",
             "visible": true,
             "options": {
-              "text": "When the deployment finishes, open the address in the deployment's webAppUrl output (Outputs on the deployment page: https://<deployment name>-<7-character suffix>.azurewebsites.net). The site opens its first-run page by itself, which connects Findable to your Microsoft Entra tenant (two app registrations and the administrators group) and finishes the setup. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
+              "text": "When the deployment finishes, open the address in the deployment's webAppUrl output (Outputs on the deployment page: https://<deployment name>-<7-character suffix>.azurewebsites.net). The site shows its Connect tenant page with one script to run in Azure Cloud Shell as an administrator of the tenant: the script creates the two app registrations and the administrators group, writes them onto the web app, and the site opens signed in. Nothing else to configure. Role assignments can take up to ten minutes to apply after the deployment reports success. Support: support@findable.net.",
               "link": {
                 "label": "Findable documentation",
                 "uri": "https://www.findable.net"
