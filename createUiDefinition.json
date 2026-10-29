@@ -45,7 +45,7 @@
         "visible": true,
         "options": {
           "icon": "Info",
-          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The install needs an Azure AI Foundry account in the Region: an error appears below when this subscription cannot create one there, and the checks on the next tabs tell you when the Region lacks something else."
+          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The install needs an Azure AI Foundry account and a Cosmos DB account in the Region: an error appears below when this subscription cannot create one of them there, and the checks on the next tabs tell you when the Region lacks something else."
         }
       },
       {
@@ -72,6 +72,23 @@
         "options": {
           "icon": "Error",
           "text": "[concat('This subscription cannot create an Azure AI Foundry account (kind AIServices, S0) in ', location(), ', and Findable needs one, so the deployment would fail there. Azure opens Foundry regions to a subscription one by one (https://aka.ms/locationineligible): choose another Region (a new resource group when an existing one pins it), or ask Microsoft support for Azure AI Foundry access in this one. scripts/check-region.sh in the Findable documentation lists the regions this subscription can use.')]"
+        }
+      },
+      {
+        "name": "cosmosLocationApi",
+        "type": "Microsoft.Solutions.ArmApiControl",
+        "request": {
+          "method": "GET",
+          "path": "[concat(subscription().id, '/providers/Microsoft.DocumentDB/locations/', location(), '?api-version=2024-11-15')]"
+        }
+      },
+      {
+        "name": "cosmosRegionError",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": "[and(not(empty(basics('cosmosLocationApi').properties)), equals(basics('cosmosLocationApi').properties.isSubscriptionRegionAccessAllowedForRegular, false))]",
+        "options": {
+          "icon": "Error",
+          "text": "[concat('Cosmos DB is not accepting new accounts from this subscription in ', location(), ' at the moment (its capacity there is spoken for, or the region is closed to this subscription), and Findable needs one, so the deployment would fail there. Choose another Region (a new resource group when an existing one pins it), or ask Microsoft support for Cosmos DB capacity in this one (Help + support, Service and subscription limits (quotas), Azure Cosmos DB) and deploy once it is granted.')]"
         }
       }
     ],
