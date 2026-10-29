@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "18163776228091540898"
+      "templateHash": "2539435266040728843"
     }
   },
   "parameters": {
@@ -71,9 +71,20 @@
         "description": "Version of the embedding model. Empty takes the account's default version. The wizard does not ask; a CLI install may set it."
       }
     },
+    "embeddingSku": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "allowedValues": [
+        "Standard",
+        "GlobalStandard"
+      ],
+      "metadata": {
+        "description": "SKU of the embedding deployment. Standard where the region offers it; GlobalStandard where it offers only that (West US 3 refused Standard for text-embedding-3-small with InvalidResourceProperties on 2026-10-29). The wizard reads the region's model list and sets it; scripts/check-region.sh prints it for a CLI install."
+      }
+    },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.11/findable-3.3.11.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.12/findable-3.3.12.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
@@ -423,7 +434,7 @@
       "apiVersion": "2024-10-01",
       "name": "[format('{0}/{1}', variables('foundryName'), parameters('embeddingModel'))]",
       "sku": {
-        "name": "Standard",
+        "name": "[parameters('embeddingSku')]",
         "capacity": "[variables('preset').embeddingCapacity]"
       },
       "properties": {

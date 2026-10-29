@@ -181,7 +181,7 @@
             "visible": true,
             "options": {
               "icon": "Info",
-              "text": "The models deploy on an Azure AI Foundry account in the chosen region: the chat model named here and text-embedding-3-small for indexing and retrieval. Availability varies by region: if the chat model is not offered where you deploy, pick another model or another region."
+              "text": "The models deploy on an Azure AI Foundry account in the chosen region: the chat model named here and text-embedding-3-small for indexing and retrieval. Availability varies by region: if the chat model is not offered where you deploy, pick another model or another region. The embedding model deploys as Standard, or as GlobalStandard in a region that offers only that."
             }
           },
           {
@@ -231,19 +231,28 @@
           {
             "name": "embeddingRegionError",
             "type": "Microsoft.Common.InfoBox",
-            "visible": "[and(not(empty(steps('models').regionModelsApi.value)), not(greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)))]",
+            "visible": "[and(not(empty(steps('models').regionModelsApi.value)), not(greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)), not(greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'GlobalStandard')))), 0)))]",
             "options": {
               "icon": "Error",
-              "text": "[concat('text-embedding-3-small is not offered as a Standard deployment in ', location(), '. Findable needs it for indexing and retrieval: choose another region.')]"
+              "text": "[concat('text-embedding-3-small is not offered as a Standard or GlobalStandard deployment in ', location(), '. Findable needs it for indexing and retrieval: choose another region.')]"
+            }
+          },
+          {
+            "name": "embeddingSkuNote",
+            "type": "Microsoft.Common.InfoBox",
+            "visible": "[and(not(empty(steps('models').regionModelsApi.value)), not(greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'GlobalStandard')))), 0))]",
+            "options": {
+              "icon": "Info",
+              "text": "[concat('text-embedding-3-small is offered in ', location(), ' as a GlobalStandard deployment only, so the install deploys it that way (Standard elsewhere). Nothing to do.')]"
             }
           },
           {
             "name": "embeddingQuotaWarning",
             "type": "Microsoft.Common.InfoBox",
-            "visible": "[and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, 'OpenAI.Standard.text-embedding-3-small'), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 120, 50))))), 0))]",
+            "visible": "[and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, concat('OpenAI.', if(or(empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)), 'Standard', 'GlobalStandard'), '.text-embedding-3-small')), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 120, 50))))), 0))]",
             "options": {
               "icon": "Warning",
-              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 120, 50), 'K tokens per minute of Standard quota left for text-embedding-3-small in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry or choose another region.')]"
+              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 120, 50), 'K tokens per minute of ', if(or(empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)), 'Standard', 'GlobalStandard'), ' quota left for text-embedding-3-small in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry or choose another region.')]"
             }
           }
         ]
@@ -305,6 +314,7 @@
       "sizePreset": "[steps('sizing').sizePreset]",
       "logRetentionDays": "[int(coalesce(steps('sizing').logRetentionDays, 90))]",
       "chatModel": "[coalesce(steps('models').chatModel, 'gpt-5.6-terra')]",
+      "embeddingSku": "[if(or(empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)), 'Standard', 'GlobalStandard')]",
       "licenseKey": "[coalesce(steps('license').licenseKey, '')]",
       "semanticRanker": "[steps('sizing').semanticRanker]"
     }
