@@ -164,7 +164,7 @@
             "visible": true,
             "options": {
               "icon": "Info",
-              "text": "The models deploy on an Azure AI Foundry account in the chosen region: the chat model named here and text-embedding-3-small for indexing and retrieval. Availability varies by region: if the chat model is not offered where you deploy, pick another, or switch its deployment off and add a model endpoint afterwards in Admin > Models."
+              "text": "The models deploy on an Azure AI Foundry account in the chosen region: the chat model named here and text-embedding-3-small for indexing and retrieval. Availability varies by region: if the chat model is not offered where you deploy, pick another model or another region."
             }
           },
           {
@@ -184,14 +184,6 @@
             }
           },
           {
-            "name": "deployChatModel",
-            "type": "Microsoft.Common.CheckBox",
-            "label": "Deploy a chat model",
-            "defaultValue": true,
-            "toolTip": "Off leaves Findable without a chat model until an administrator adds an endpoint in Admin > Models.",
-            "visible": true
-          },
-          {
             "name": "chatModel",
             "type": "Microsoft.Common.TextBox",
             "label": "Chat model",
@@ -203,20 +195,20 @@
               "validationMessage": "A model name: letters, digits, dots, dashes and underscores.",
               "validations": [
                 {
-                  "isValid": "[or(not(steps('models').deployChatModel), empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, steps('models').chatModel), contains(map(m.model.skus, (s) => s.name), 'GlobalStandard')))), 0))]",
-                  "message": "[concat(steps('models').chatModel, ' is not offered as a GlobalStandard deployment in ', location(), '. Pick a model the region offers, another region, or switch the chat deployment off.')]"
+                  "isValid": "[or(empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, steps('models').chatModel), contains(map(m.model.skus, (s) => s.name), 'GlobalStandard')))), 0))]",
+                  "message": "[concat(steps('models').chatModel, ' is not offered as a GlobalStandard deployment in ', location(), '. Pick a model the region offers, or another region.')]"
                 }
               ]
             },
-            "visible": "[steps('models').deployChatModel]"
+            "visible": true
           },
           {
             "name": "chatQuotaWarning",
             "type": "Microsoft.Common.InfoBox",
-            "visible": "[and(steps('models').deployChatModel, and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, concat('OpenAI.GlobalStandard.', steps('models').chatModel)), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 50, 10))))), 0)))]",
+            "visible": "[and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, concat('OpenAI.GlobalStandard.', steps('models').chatModel)), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 50, 10))))), 0))]",
             "options": {
               "icon": "Warning",
-              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 50, 10), 'K tokens per minute of GlobalStandard quota left for ', steps('models').chatModel, ' in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry, pick another model or region, or switch the chat deployment off.')]"
+              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 50, 10), 'K tokens per minute of GlobalStandard quota left for ', steps('models').chatModel, ' in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry, or pick another model or region.')]"
             }
           },
           {
@@ -295,7 +287,6 @@
       "baseName": "[basics('baseName')]",
       "sizePreset": "[steps('sizing').sizePreset]",
       "logRetentionDays": "[int(coalesce(steps('sizing').logRetentionDays, 90))]",
-      "deployChatModel": "[steps('models').deployChatModel]",
       "chatModel": "[coalesce(steps('models').chatModel, 'gpt-5.6-terra')]",
       "licenseKey": "[coalesce(steps('license').licenseKey, '')]",
       "semanticRanker": "[steps('sizing').semanticRanker]"
