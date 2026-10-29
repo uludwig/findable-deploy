@@ -79,7 +79,7 @@
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.8/findable-3.3.8.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.9/findable-3.3.9.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }

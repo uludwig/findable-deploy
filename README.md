@@ -24,7 +24,7 @@ license is separate.
 ## Steps
 
 1. Click **Deploy to Azure** and sign in to the Azure portal with an account that can create resources in the subscription. The person who runs the Connect tenant script afterwards must be able to create app registrations and groups in the Entra tenant (Application Administrator and Groups Administrator, or Global Administrator) and hold Contributor on the web app.
-2. Pick the subscription, a resource group and a region where the Azure AI Foundry models you want are offered, and a deployment name.
+2. Pick the subscription, a resource group, a region where the Azure AI Foundry models you want are offered (an existing resource group pins the region to its own; create a new group to deploy elsewhere), and a deployment name.
 3. Choose the size and the models, then create. The wizard checks the names and the region against Azure as you go: a taken name or a model the region does not offer is refused on the field, a missing service or App Service tier shows an error box, and a quota shortfall shows a warning. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
 4. Open the deployment's `webAppUrl` output (Outputs on the deployment page: `https://<deployment name>-<7 characters>.azurewebsites.net`; the suffix keeps the name unique across Azure). The site shows its Connect tenant page: copy the script, run it in Azure Cloud Shell, and wait. The script creates the two app registrations and the administrators group, writes them onto the web app, and the site opens signed in. Nothing is pasted back unless the script says it could not write the app settings.
 

@@ -6,13 +6,19 @@
     "config": {
       "isWizard": true,
       "basics": {
-        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Pick the Region below; every resource is created there, whatever region the resource group has (the resource group region above is only where the group record lives). Choose one where the Azure AI Foundry models you want are offered.",
+        "description": "Findable deploys into this subscription and resource group. Every resource is created new, with managed identities only: no keys, no connection strings. Every resource is created in the Region: choose one where this subscription can create the Azure AI Foundry account (the check below says so) and where the models you want are offered. An existing resource group pins the Region to its own; to deploy elsewhere, create a new resource group.",
         "resourceGroup": {
           "allowExisting": true
         },
         "location": {
-          "label": "Resource group region",
-          "toolTip": "Where the resource group record lives. A new resource group is created here; an existing one keeps its own. The Findable resources go to the Region chosen below, which can differ.",
+          "label": "Region",
+          "toolTip": "The Azure region every Findable resource is created in. Only regions that offer the web app, the Foundry account, the search service and Cosmos DB are listed; the check below says whether this subscription can create the Foundry account there. An existing resource group pins the Region to its own region: to deploy elsewhere, create a new resource group.",
+          "resourceTypes": [
+            "Microsoft.Web/sites",
+            "Microsoft.CognitiveServices/accounts",
+            "Microsoft.Search/searchServices",
+            "Microsoft.DocumentDB/databaseAccounts"
+          ],
           "visible": true
         }
       }
@@ -39,7 +45,7 @@
         "visible": true,
         "options": {
           "icon": "Info",
-          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The Region list offers only the regions where this subscription can create the Azure AI Foundry account the install needs; the checks on the next tabs tell you when a region lacks something else."
+          "text": "Names that must be unique across Azure (the web app, the storage account, the Cosmos DB account, the search service and the Foundry account) get a 7-character suffix computed from the resource group and this name, so any name works and a redeploy into the same resource group keeps the same names. The install needs an Azure AI Foundry account in the Region: an error appears below when this subscription cannot create one there, and the checks on the next tabs tell you when the Region lacks something else."
         }
       },
       {
@@ -51,32 +57,21 @@
         }
       },
       {
-        "name": "regionsApi",
-        "type": "Microsoft.Solutions.ArmApiControl",
-        "request": {
-          "method": "GET",
-          "path": "[concat(subscription().id, '/locations?api-version=2022-12-01')]"
-        }
-      },
-      {
-        "name": "region",
-        "type": "Microsoft.Common.DropDown",
-        "label": "Region",
-        "toolTip": "The Azure region every Findable resource is created in. Only the regions where this subscription can create an Azure AI Foundry account (kind AIServices, S0) are listed, because the install needs one. It is independent of the resource group region above, so a redeploy into an existing group can still pick any region; the checks on the next tabs tell you when a region lacks something else.",
-        "filter": true,
-        "constraints": {
-          "required": true,
-          "allowedValues": "[map(filter(basics('regionsApi').value, (r) => and(equals(r.metadata.regionType, 'Physical'), or(empty(basics('cognitiveSkusApi').value), contains(map(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), empty(s.restrictions))), (s) => toLower(first(s.locations))), toLower(r.name))))), (r) => parse(concat('{\"label\":\"', r.displayName, '\",\"value\":\"', r.name, '\"}')))]"
-        },
-        "visible": true
-      },
-      {
         "name": "foundryNoRegionError",
         "type": "Microsoft.Common.InfoBox",
         "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), equals(length(map(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), empty(s.restrictions))), (s) => toLower(first(s.locations)))), 0))]",
         "options": {
           "icon": "Error",
-          "text": "This subscription cannot create an Azure AI Foundry account (kind AIServices, S0) in any region, and Findable needs one, so the Region list is empty and the deployment would fail wherever it ran. A Free Trial, Azure for Students or a similar offer cannot create Azure OpenAI or Foundry accounts, and Azure may not yet have opened them to a brand-new subscription or tenant (https://aka.ms/locationineligible). Pick another subscription in the Subscription field above (the list refreshes for it), upgrade this one to pay-as-you-go, or ask Microsoft support for Azure AI Foundry access (Help + support, Service and subscription limits (quotas), Cognitive Services) and start this wizard again."
+          "text": "This subscription cannot create an Azure AI Foundry account (kind AIServices, S0) in any region, and Findable needs one, so the deployment would fail whichever Region is chosen. A Free Trial, Azure for Students or a similar offer cannot create Azure OpenAI or Foundry accounts, and Azure may not yet have opened them to a brand-new subscription or tenant (https://aka.ms/locationineligible). Pick another subscription in the Subscription field above (the list refreshes for it), upgrade this one to pay-as-you-go, or ask Microsoft support for Azure AI Foundry access (Help + support, Service and subscription limits (quotas), Cognitive Services) and start this wizard again."
+        }
+      },
+      {
+        "name": "foundryRegionError",
+        "type": "Microsoft.Common.InfoBox",
+        "visible": "[and(not(empty(basics('cognitiveSkusApi').value)), greater(length(map(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), empty(s.restrictions))), (s) => toLower(first(s.locations)))), 0), not(contains(map(filter(basics('cognitiveSkusApi').value, (s) => and(equals(s.kind, 'AIServices'), equals(s.name, 'S0'), empty(s.restrictions))), (s) => toLower(first(s.locations))), toLower(location()))))]",
+        "options": {
+          "icon": "Error",
+          "text": "[concat('This subscription cannot create an Azure AI Foundry account (kind AIServices, S0) in ', location(), ', and Findable needs one, so the deployment would fail there. Azure opens Foundry regions to a subscription one by one (https://aka.ms/locationineligible): choose another Region (a new resource group when an existing one pins it), or ask Microsoft support for Azure AI Foundry access in this one. scripts/check-region.sh in the Findable documentation lists the regions this subscription can use.')]"
         }
       }
     ],
@@ -119,10 +114,10 @@
           {
             "name": "webRegionError",
             "type": "Microsoft.Common.InfoBox",
-            "visible": "[and(not(empty(steps('sizing').webRegionsApi.value)), not(contains(map(steps('sizing').webRegionsApi.value, (r) => replace(toLower(r.name), ' ', '')), toLower(basics('region')))))]",
+            "visible": "[and(not(empty(steps('sizing').webRegionsApi.value)), not(contains(map(steps('sizing').webRegionsApi.value, (r) => replace(toLower(r.name), ' ', '')), toLower(location()))))]",
             "options": {
               "icon": "Error",
-              "text": "[concat('The ', if(equals(steps('sizing').sizePreset, 'production'), 'P1v3', 'B1'), ' Linux App Service tier is not offered in ', basics('region'), '. The deployment would fail: choose the other preset or another region.')]"
+              "text": "[concat('The ', if(equals(steps('sizing').sizePreset, 'production'), 'P1v3', 'B1'), ' Linux App Service tier is not offered in ', location(), '. The deployment would fail: choose the other preset or another region.')]"
             }
           },
           {
@@ -177,7 +172,7 @@
             "type": "Microsoft.Solutions.ArmApiControl",
             "request": {
               "method": "GET",
-              "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/locations/', basics('region'), '/models?api-version=2024-10-01')]"
+              "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/locations/', location(), '/models?api-version=2024-10-01')]"
             }
           },
           {
@@ -185,7 +180,7 @@
             "type": "Microsoft.Solutions.ArmApiControl",
             "request": {
               "method": "GET",
-              "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/locations/', basics('region'), '/usages?api-version=2024-10-01')]"
+              "path": "[concat(subscription().id, '/providers/Microsoft.CognitiveServices/locations/', location(), '/usages?api-version=2024-10-01')]"
             }
           },
           {
@@ -209,7 +204,7 @@
               "validations": [
                 {
                   "isValid": "[or(not(steps('models').deployChatModel), empty(steps('models').regionModelsApi.value), greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, steps('models').chatModel), contains(map(m.model.skus, (s) => s.name), 'GlobalStandard')))), 0))]",
-                  "message": "[concat(steps('models').chatModel, ' is not offered as a GlobalStandard deployment in ', basics('region'), '. Pick a model the region offers, another region, or switch the chat deployment off.')]"
+                  "message": "[concat(steps('models').chatModel, ' is not offered as a GlobalStandard deployment in ', location(), '. Pick a model the region offers, another region, or switch the chat deployment off.')]"
                 }
               ]
             },
@@ -221,7 +216,7 @@
             "visible": "[and(steps('models').deployChatModel, and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, concat('OpenAI.GlobalStandard.', steps('models').chatModel)), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 50, 10))))), 0)))]",
             "options": {
               "icon": "Warning",
-              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 50, 10), 'K tokens per minute of GlobalStandard quota left for ', steps('models').chatModel, ' in ', basics('region'), '. The deployment would fail on quota: request more in Azure AI Foundry, pick another model or region, or switch the chat deployment off.')]"
+              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 50, 10), 'K tokens per minute of GlobalStandard quota left for ', steps('models').chatModel, ' in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry, pick another model or region, or switch the chat deployment off.')]"
             }
           },
           {
@@ -230,7 +225,7 @@
             "visible": "[and(not(empty(steps('models').regionModelsApi.value)), not(greater(length(filter(steps('models').regionModelsApi.value, (m) => and(equals(m.model.name, 'text-embedding-3-small'), contains(map(m.model.skus, (s) => s.name), 'Standard')))), 0)))]",
             "options": {
               "icon": "Error",
-              "text": "[concat('text-embedding-3-small is not offered as a Standard deployment in ', basics('region'), '. Findable needs it for indexing and retrieval: choose another region.')]"
+              "text": "[concat('text-embedding-3-small is not offered as a Standard deployment in ', location(), '. Findable needs it for indexing and retrieval: choose another region.')]"
             }
           },
           {
@@ -239,7 +234,7 @@
             "visible": "[and(not(empty(steps('models').regionUsagesApi.value)), greater(length(filter(steps('models').regionUsagesApi.value, (u) => and(equals(u.name.value, 'OpenAI.Standard.text-embedding-3-small'), less(sub(u.limit, u.currentValue), if(equals(steps('sizing').sizePreset, 'production'), 120, 50))))), 0))]",
             "options": {
               "icon": "Warning",
-              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 120, 50), 'K tokens per minute of Standard quota left for text-embedding-3-small in ', basics('region'), '. The deployment would fail on quota: request more in Azure AI Foundry or choose another region.')]"
+              "text": "[concat('This subscription has less than ', if(equals(steps('sizing').sizePreset, 'production'), 120, 50), 'K tokens per minute of Standard quota left for text-embedding-3-small in ', location(), '. The deployment would fail on quota: request more in Azure AI Foundry or choose another region.')]"
             }
           }
         ]
@@ -296,7 +291,7 @@
       }
     ],
     "outputs": {
-      "location": "[basics('region')]",
+      "location": "[location()]",
       "baseName": "[basics('baseName')]",
       "sizePreset": "[steps('sizing').sizePreset]",
       "logRetentionDays": "[int(coalesce(steps('sizing').logRetentionDays, 90))]",
