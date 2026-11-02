@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "2539435266040728843"
+      "templateHash": "13081248007026126159"
     }
   },
   "parameters": {
@@ -22,6 +22,20 @@
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
         "description": "Region for every resource. Azure AI Foundry model availability varies by region; see chatModel."
+      }
+    },
+    "deployRegion": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "The wizard's Region under a name of its own: the wizard outputs [location()] here as it does under location. The portal has passed location as an empty string on every wizard install (see deployLocation), so this parameter shows whether it blanks only the parameter of that name. A value that arrives wins, an empty one changes nothing, and a CLI install leaves it empty."
+      }
+    },
+    "searchLocation": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Region of the search service alone, when it is not the Region. Azure AI Search refuses a new service in a region whose search capacity is spent (InsufficientResourcesAvailable: East US 2 on 2026-11-02, Basic and Standard alike) and offers no check before creation, so this creates the one service elsewhere while everything else stays in the Region; keyless skillset billing (AIServicesByIdentity) has no same-region requirement. Empty means the Region. The wizard sets it from the Size tab."
       }
     },
     "sizePreset": {
@@ -84,7 +98,7 @@
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.12/findable-3.3.12.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.13/findable-3.3.13.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
@@ -151,7 +165,8 @@
         }
       }
     ],
-    "deployLocation": "[if(empty(parameters('location')), resourceGroup().location, parameters('location'))]",
+    "deployLocation": "[if(not(empty(parameters('deployRegion'))), parameters('deployRegion'), if(empty(parameters('location')), resourceGroup().location, parameters('location')))]",
+    "searchDeployLocation": "[if(empty(parameters('searchLocation')), variables('deployLocation'), parameters('searchLocation'))]",
     "suffix": "[toLower(uniqueString(resourceGroup().id, parameters('baseName')))]",
     "tail": "[take(variables('suffix'), 7)]",
     "storageName": "[toLower(format('{0}{1}', parameters('baseName'), variables('tail')))]",
@@ -167,6 +182,50 @@
     "logTableName": "FindableLogs_CL",
     "logStreamName": "[format('Custom-{0}', variables('logTableName'))]",
     "blobContainerName": "data",
+    "vaultName": "[format('kv-{0}-{1}', take(parameters('baseName'), 12), variables('tail'))]",
+    "tokenKeyName": "token-encryption",
+    "cosmosContainers": [
+      {
+        "name": "settings",
+        "partitionKey": "/id",
+        "ttl": false
+      },
+      {
+        "name": "chat",
+        "partitionKey": "/id",
+        "ttl": false
+      },
+      {
+        "name": "pages",
+        "partitionKey": "/id",
+        "ttl": false
+      },
+      {
+        "name": "prompts",
+        "partitionKey": "/id",
+        "ttl": true
+      },
+      {
+        "name": "aimodelendpoints",
+        "partitionKey": "/id",
+        "ttl": false
+      },
+      {
+        "name": "aisearchendpoints",
+        "partitionKey": "/id",
+        "ttl": false
+      },
+      {
+        "name": "chatlog",
+        "partitionKey": "/email",
+        "ttl": false
+      },
+      {
+        "name": "feedback",
+        "partitionKey": "/email",
+        "ttl": false
+      }
+    ],
     "presets": {
       "trial": {
         "planSku": {
@@ -199,7 +258,8 @@
       "searchIndexDataContributor": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
       "cognitiveServicesUser": "a97b65f3-24c7-4388-baec-2e87135dc908",
       "cosmosDbOperator": "230815da-be43-4aae-9cb4-875f7bd000aa",
-      "monitoringMetricsPublisher": "3913510d-42f4-4e42-8a64-420c390055eb"
+      "monitoringMetricsPublisher": "3913510d-42f4-4e42-8a64-420c390055eb",
+      "keyVaultCryptoUser": "12338af0-0e69-4776-bea7-57ae8d297424"
     },
     "cosmosDataContributorRoleId": "00000000-0000-0000-0000-000000000002",
     "logColumns": [
@@ -375,10 +435,61 @@
       ]
     },
     {
+      "copy": {
+        "name": "cosmosContainerSet",
+        "count": "[length(variables('cosmosContainers'))]",
+        "mode": "serial",
+        "batchSize": 1
+      },
+      "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers",
+      "apiVersion": "2024-11-15",
+      "name": "[format('{0}/{1}/{2}', variables('cosmosName'), variables('cosmosDatabaseName'), variables('cosmosContainers')[copyIndex()].name)]",
+      "properties": {
+        "resource": "[union(createObject('id', variables('cosmosContainers')[copyIndex()].name, 'partitionKey', createObject('paths', createArray(variables('cosmosContainers')[copyIndex()].partitionKey), 'kind', 'Hash')), if(variables('cosmosContainers')[copyIndex()].ttl, createObject('defaultTtl', -1), createObject()))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', variables('cosmosName'), variables('cosmosDatabaseName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('vaultName')]",
+      "location": "[variables('deployLocation')]",
+      "tags": "[parameters('tags')]",
+      "properties": {
+        "tenantId": "[subscription().tenantId]",
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "enableRbacAuthorization": true,
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": 7,
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/keys",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', variables('vaultName'), variables('tokenKeyName'))]",
+      "properties": {
+        "kty": "RSA",
+        "keySize": 3072,
+        "keyOps": [
+          "wrapKey",
+          "unwrapKey"
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+      ]
+    },
+    {
       "type": "Microsoft.Search/searchServices",
       "apiVersion": "2023-11-01",
       "name": "[variables('searchName')]",
-      "location": "[variables('deployLocation')]",
+      "location": "[variables('searchDeployLocation')]",
       "tags": "[parameters('tags')]",
       "sku": {
         "name": "[variables('preset').searchSku]"
@@ -662,6 +773,22 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
+        "cosmosContainerSet",
+        "[resourceId('Microsoft.Web/sites', variables('appName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('vaultName')), resourceId('Microsoft.Web/sites', variables('appName')), variables('roles').keyVaultCryptoUser)]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('roles').keyVaultCryptoUser)]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]",
         "[resourceId('Microsoft.Web/sites', variables('appName'))]"
       ]
     },
@@ -714,12 +841,13 @@
       "type": "Microsoft.Web/sites/config",
       "apiVersion": "2024-04-01",
       "name": "[format('{0}/{1}', variables('appName'), 'appsettings')]",
-      "properties": "[union(createObject('NODE_ENV', 'production', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'WEBSITE_NODE_DEFAULT_VERSION', '~24', 'FINDABLE_BASE_URL', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName), 'TENANT_ID', subscription().tenantId, 'FINDABLE_WEB_PRINCIPAL_ID', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId, 'FINDABLE_WEB_RESOURCE_ID', resourceId('Microsoft.Web/sites', variables('appName')), 'FINDABLE_LICENSE_REQUIRED', if(parameters('licenseRequired'), 'true', 'false'), 'FINDABLE_LICENSE_KEY', parameters('licenseKey'), 'AZURE_COSMOS_ENDPOINT', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, 'AZURE_COSMOS_DB', variables('cosmosDatabaseName'), 'AZURE_COSMOS_AUTH_TYPE', 'managedSystemIdentity', 'AZURE_COSMOS_RESOURCE_ID', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), 'AZURE_STORAGE_ENDPOINT', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, 'AZURE_STORAGE_RESOURCE_ID', resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), 'AZURE_STORAGE_CONTAINER_NAME', variables('blobContainerName'), 'AZURE_SEARCH_ENDPOINT', variables('searchEndpoint'), 'AZURE_AI_ENDPOINT', variables('foundryEndpoint'), 'AZURE_AI_MODEL', parameters('chatModel'), 'AZURE_AI_DEPLOYMENT', parameters('chatModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING', parameters('embeddingModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING_MODEL_NAME', parameters('embeddingModel'), 'AZURE_AI_SERVICES_ENDPOINT', variables('foundryToolsEndpoint'), 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', variables('foundryToolsEndpoint'), 'AZURE_MONITOR_LOGGING_ENABLED', 'true', 'AZURE_MONITOR_DCE_ENDPOINT', reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName')), '2023-03-11').logsIngestion.endpoint, 'AZURE_MONITOR_DCR_RULE_ID', reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')), '2023-03-11').immutableId, 'AZURE_MONITOR_STREAM_NAME', variables('logStreamName')), if(empty(parameters('packageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('packageUrl'))))]",
+      "properties": "[union(createObject('NODE_ENV', 'production', 'SCM_DO_BUILD_DURING_DEPLOYMENT', 'false', 'WEBSITE_NODE_DEFAULT_VERSION', '~24', 'FINDABLE_BASE_URL', format('https://{0}', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01').defaultHostName), 'TENANT_ID', subscription().tenantId, 'FINDABLE_WEB_PRINCIPAL_ID', reference(resourceId('Microsoft.Web/sites', variables('appName')), '2024-04-01', 'full').identity.principalId, 'FINDABLE_WEB_RESOURCE_ID', resourceId('Microsoft.Web/sites', variables('appName')), 'FINDABLE_LICENSE_REQUIRED', if(parameters('licenseRequired'), 'true', 'false'), 'FINDABLE_LICENSE_KEY', parameters('licenseKey'), 'AZURE_COSMOS_ENDPOINT', reference(resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), '2024-11-15').documentEndpoint, 'AZURE_COSMOS_DB', variables('cosmosDatabaseName'), 'AZURE_COSMOS_AUTH_TYPE', 'managedSystemIdentity', 'AZURE_COSMOS_RESOURCE_ID', resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName')), 'TOKEN_ENCRYPTION_KEY_ID', reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('vaultName'), variables('tokenKeyName')), '2023-07-01').keyUriWithVersion, 'AZURE_STORAGE_ENDPOINT', reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob, 'AZURE_STORAGE_RESOURCE_ID', resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), 'AZURE_STORAGE_CONTAINER_NAME', variables('blobContainerName'), 'AZURE_SEARCH_ENDPOINT', variables('searchEndpoint'), 'AZURE_AI_ENDPOINT', variables('foundryEndpoint'), 'AZURE_AI_MODEL', parameters('chatModel'), 'AZURE_AI_DEPLOYMENT', parameters('chatModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING', parameters('embeddingModel'), 'AZURE_AI_DEPLOYMENT_TEXT_EMBEDDING_MODEL_NAME', parameters('embeddingModel'), 'AZURE_AI_SERVICES_ENDPOINT', variables('foundryToolsEndpoint'), 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', variables('foundryToolsEndpoint'), 'AZURE_MONITOR_LOGGING_ENABLED', 'true', 'AZURE_MONITOR_DCE_ENDPOINT', reference(resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName')), '2023-03-11').logsIngestion.endpoint, 'AZURE_MONITOR_DCR_RULE_ID', reference(resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName')), '2023-03-11').immutableId, 'AZURE_MONITOR_STREAM_NAME', variables('logStreamName')), if(empty(parameters('packageUrl')), createObject(), createObject('WEBSITE_RUN_FROM_PACKAGE', parameters('packageUrl'))))]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', variables('cosmosName'))]",
         "[resourceId('Microsoft.Insights/dataCollectionEndpoints', variables('dceName'))]",
         "[resourceId('Microsoft.Insights/dataCollectionRules', variables('dcrName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]",
+        "[resourceId('Microsoft.KeyVault/vaults/keys', variables('vaultName'), variables('tokenKeyName'))]",
         "[resourceId('Microsoft.Web/sites', variables('appName'))]"
       ]
     }
@@ -756,6 +884,14 @@
     "storageBlobEndpoint": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageName')), '2023-05-01').primaryEndpoints.blob]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "value": "[variables('vaultName')]"
+    },
+    "tokenEncryptionKeyId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.KeyVault/vaults/keys', variables('vaultName'), variables('tokenKeyName')), '2023-07-01').keyUriWithVersion]"
     },
     "logAnalyticsWorkspaceId": {
       "type": "string",
