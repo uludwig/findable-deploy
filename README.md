@@ -25,8 +25,8 @@ license is separate.
 ## Steps
 
 1. Click **Deploy to Azure** and sign in to the Azure portal with an account that can create resources in the subscription. The person who runs the Connect tenant script afterwards must be able to create app registrations and groups in the Entra tenant (Application Administrator and Groups Administrator, or Global Administrator) and hold Contributor on the web app.
-2. Pick the subscription, a resource group, a region and a deployment name (an existing resource group pins the region to its own; create a new group to deploy elsewhere). No single region offers everything to every subscription, so Basics checks the region as you go and shows an error when the subscription cannot create the Azure AI Foundry account or the Cosmos DB account there, or the region does not offer the models (Findable deploys `gpt-5.6-terra` and `text-embedding-3-small`; nothing to choose). Under each error is a checkbox that creates that one account in another region of your choice while everything else stays in the region you picked: tick it and choose a region the check accepts. Basics also shows an error when a Key Vault from an earlier install into a resource group of the same name is still soft-deleted (see below). Do not change the region once the Summary page has validated: the portal created the resource group then, the deployment goes into the group's region, and the Summary page keeps what it validated; use the checkboxes instead, or start again in a new tab with a new resource group name (Basics shows an error when the group you named already exists in another region).
-3. Choose the size, then create. The Size tab can put the search service alone in another region, for a region where Azure AI Search has no capacity left (see below), and warns when the subscription's model quota in the Foundry account's region is short. The wizard checks the names and the regions against Azure as you go: a missing service, model or App Service tier shows an error box, and a quota shortfall shows a warning. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
+2. Pick the subscription, a resource group, a region and a deployment name (an existing resource group pins the region to its own; create a new group to deploy elsewhere). No single region offers everything to every subscription, so Basics checks the region as you go and shows an error when the subscription cannot create the Azure AI Foundry account or the Cosmos DB account there, or the region does not offer the models (Findable deploys `text-embedding-3-small` and the newest chat model your subscription can deploy, `gpt-5.6-terra` down to `gpt-4.1`; there is nothing to choose, and the Size tab names the model when it is not `gpt-5.6-terra`). Under each error is a checkbox that creates that one account in another region of your choice while everything else stays in the region you picked: tick it and choose a region the check accepts. Basics also shows an error when a Key Vault from an earlier install into a resource group of the same name is still soft-deleted (see below). Do not change the region once the Summary page has validated: the portal created the resource group then, the deployment goes into the group's region, and the Summary page keeps what it validated; use the checkboxes instead, or start again in a new tab with a new resource group name (Basics shows an error when the group you named already exists in another region).
+3. Choose the size, then create. The Size tab can put the search service alone in another region, for a region where Azure AI Search has no capacity left (see below), shows an error when the subscription has no App Service VM quota in the region or no Azure OpenAI quota for any chat model Findable can deploy (see below), names the chat model the install deploys when it is not `gpt-5.6-terra`, and warns when the embedding model's quota is short. The wizard checks the names and the regions against Azure as you go: a missing service, model or App Service tier shows an error box, and a quota shortfall shows a warning. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
 4. Open the deployment's `webAppUrl` output (Outputs on the deployment page: `https://<deployment name>-<7 characters>.azurewebsites.net`; the suffix keeps the name unique across Azure). The site opens on its Connect tenant page (every other prerequisite was met by the template): copy the script, run it in Azure Cloud Shell, and wait. The script creates the two app registrations and the administrators group, writes them onto the web app, and the site opens signed in. Nothing is pasted back unless the script says it could not write the app settings.
 
 ## If the deployment fails
@@ -59,6 +59,26 @@ removed), deploy again into a new resource group and tick "Create the Azure AI
 Foundry account in another region" on Basics, picking a region the checks
 accept: only the Foundry account and its two model deployments move.
 
+When the Summary page failed with `SpecialFeatureOrQuotaIdRequired` ("The
+current subscription does not have access to this model"), the subscription
+has no Azure OpenAI quota for that model in the Foundry account's region:
+GPT-5.4 and later are limited-access models Azure opens per subscription on
+application, and a brand-new subscription can hold zero quota for every model.
+The wizard deploys the newest model your subscription has quota for and names
+it on the Size tab; when it has quota for none, the Size tab shows an error.
+Request quota for a model in Azure AI Foundry (Quotas, Azure OpenAI) or apply
+for GPT-5.4 and later access, then deploy again into a new resource group. A
+newer model can be deployed on the Foundry account later and chosen on
+Findable's AI model endpoints page.
+
+When the Summary page failed with `SubscriptionIsOverQuotaForSku` ("Current
+Limit (Total VMs): 0"), the subscription has no App Service VM quota in the
+region: a new or a trial subscription starts at zero. The Size tab shows an
+error when that is the case. Request the quota (Quotas, App Service, the
+region, the tier's family and the regional total; a trial subscription may
+need an upgrade to pay-as-you-go first) and deploy again, or deploy into
+another region with a new resource group.
+
 When the failure was the search service refusing the region with
 `InsufficientResourcesAvailable` ("The region '...' is currently out of the
 resources required to provision new services"), Azure AI Search has no
@@ -75,7 +95,7 @@ group a new name, or purge the vault first (Key vaults, Manage deleted vaults).
 
 ## Requirements
 
-- An Azure subscription in the Azure public cloud (Azure Government and Azure China are not supported) with Azure AI Foundry model quota in the chosen region.
+- An Azure subscription in the Azure public cloud (Azure Government and Azure China are not supported) with App Service VM quota and Azure OpenAI quota for at least one GPT model in the chosen region. A brand-new or trial subscription may hold neither: request both under Quotas before installing, and apply for GPT-5.4 and later access to get the default model.
 - A Microsoft Entra tenant; the Connect tenant script creates two app registrations and an administrators group in it.
 - A Findable license key for use beyond the 30-day trial: see https://www.findable.net/pricing.
 

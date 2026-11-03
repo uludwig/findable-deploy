@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "15940358434277148223"
+      "templateHash": "9063442426652642556"
     }
   },
   "parameters": {
@@ -75,7 +75,7 @@
       "defaultValue": "gpt-5.6-terra",
       "minLength": 1,
       "metadata": {
-        "description": "Chat model to deploy on the Foundry account, by its catalog name: the GPT-5.6 family is gpt-5.6-sol, gpt-5.6-terra and gpt-5.6-luna, the GPT-6 family gpt-6-sol, gpt-6-luna and gpt-6.1-terra (there is no base gpt-5.6; the account refuses it with DeploymentModelNotSupported). Always deployed: Findable needs a chat model, so there is no off switch and the name is never empty. The wizard does not ask and deploys this default, checking on its Basics tab that the Foundry account's region offers it as GlobalStandard (infra/check-ui-definition.mjs keeps the two names in step); a CLI install may set another."
+        "description": "Chat model to deploy on the Foundry account, by its catalog name: the GPT-5.6 family is gpt-5.6-sol, gpt-5.6-terra and gpt-5.6-luna, the GPT-6 family gpt-6-sol, gpt-6-luna and gpt-6.1-terra (there is no base gpt-5.6; the account refuses it with DeploymentModelNotSupported). Always deployed: Findable needs a chat model, so there is no off switch and the name is never empty. The wizard does not ask: it passes this default when the subscription can deploy it in the Foundry account's region (offered as GlobalStandard, with quota left for the preset's capacity) and otherwise the first older model it can (gpt-5.5, gpt-5.4, gpt-5.2, gpt-5.1, gpt-5, gpt-5-mini, gpt-4.1, in that order), because GPT-5.4 and later are limited-access per subscription and the first v3.3.14 install was refused this default with SpecialFeatureOrQuotaIdRequired on 2026-11-03; the Size tab names the model the install deploys, and infra/check-ui-definition.mjs keeps this default at the head of the wizard's list. A CLI install may set another; scripts/check-region.sh picks the same way."
       }
     },
     "chatModelVersion": {
@@ -112,7 +112,7 @@
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.14/findable-3.3.14.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.15/findable-3.3.15.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
