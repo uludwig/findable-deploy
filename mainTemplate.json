@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "13081248007026126159"
+      "templateHash": "15940358434277148223"
     }
   },
   "parameters": {
@@ -21,7 +21,7 @@
       "type": "string",
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
-        "description": "Region for every resource. Azure AI Foundry model availability varies by region; see chatModel."
+        "description": "Region for every resource that has no region of its own: the web app and its plan, the storage account, the Key Vault and the logging resources, and the search service, the Azure AI Foundry account and the Cosmos DB account unless searchLocation, aiLocation or cosmosLocation moves one. No single region offers every resource to every subscription, so the wizard lets each of those three be created elsewhere."
       }
     },
     "deployRegion": {
@@ -36,6 +36,20 @@
       "defaultValue": "",
       "metadata": {
         "description": "Region of the search service alone, when it is not the Region. Azure AI Search refuses a new service in a region whose search capacity is spent (InsufficientResourcesAvailable: East US 2 on 2026-11-02, Basic and Standard alike) and offers no check before creation, so this creates the one service elsewhere while everything else stays in the Region; keyless skillset billing (AIServicesByIdentity) has no same-region requirement. Empty means the Region. The wizard sets it from the Size tab."
+      }
+    },
+    "aiLocation": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Region of the Azure AI Foundry account and its model deployments alone, when it is not the Region. The account's S0 SKU, the chat model as GlobalStandard and the embedding model are offered region by region (and subscription by subscription), and the search skillsets bill it by identity (AIServicesByIdentity), which has no same-region requirement, so the account may live wherever its models are offered while everything else stays in the Region. Empty means the Region. The wizard sets it from the Basics tab."
+      }
+    },
+    "cosmosLocation": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Region of the Cosmos DB account alone, when it is not the Region. Cosmos DB refuses a new account in a region whose capacity is spent or that the subscription may not use (East US on 2026-10-29), so this creates the one account elsewhere while everything else stays in the Region; the app reaches it over its own endpoint, with the latency of the distance. Empty means the Region. The wizard sets it from the Basics tab."
       }
     },
     "sizePreset": {
@@ -61,7 +75,7 @@
       "defaultValue": "gpt-5.6-terra",
       "minLength": 1,
       "metadata": {
-        "description": "Chat model to deploy on the Foundry account, by its catalog name: the GPT-5.6 family is gpt-5.6-sol, gpt-5.6-terra and gpt-5.6-luna, the GPT-6 family gpt-6-sol, gpt-6-luna and gpt-6.1-terra (there is no base gpt-5.6; the account refuses it with DeploymentModelNotSupported). Always deployed: Findable needs a chat model, so there is no off switch and the name is never empty; a region that lacks the model means another model or another region."
+        "description": "Chat model to deploy on the Foundry account, by its catalog name: the GPT-5.6 family is gpt-5.6-sol, gpt-5.6-terra and gpt-5.6-luna, the GPT-6 family gpt-6-sol, gpt-6-luna and gpt-6.1-terra (there is no base gpt-5.6; the account refuses it with DeploymentModelNotSupported). Always deployed: Findable needs a chat model, so there is no off switch and the name is never empty. The wizard does not ask and deploys this default, checking on its Basics tab that the Foundry account's region offers it as GlobalStandard (infra/check-ui-definition.mjs keeps the two names in step); a CLI install may set another."
       }
     },
     "chatModelVersion": {
@@ -87,18 +101,18 @@
     },
     "embeddingSku": {
       "type": "string",
-      "defaultValue": "Standard",
+      "defaultValue": "GlobalStandard",
       "allowedValues": [
         "Standard",
         "GlobalStandard"
       ],
       "metadata": {
-        "description": "SKU of the embedding deployment. Standard where the region offers it; GlobalStandard where it offers only that (West US 3 refused Standard for text-embedding-3-small with InvalidResourceProperties on 2026-10-29). The wizard reads the region's model list and sets it; scripts/check-region.sh prints it for a CLI install."
+        "description": "SKU of the embedding deployment. GlobalStandard, which every region that offers text-embedding-3-small offers; Standard is offered for it in four regions only (Canada East, East US, East US 2 and West US), and West US 3 refused it with InvalidResourceProperties on 2026-10-29 and again on 2026-11-02, so the default is GlobalStandard. The wizard reads the Foundry account's region's model list and sets Standard only where that is offered and GlobalStandard is not; scripts/check-region.sh prints the same for a CLI install."
       }
     },
     "packageUrl": {
       "type": "string",
-      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.13/findable-3.3.13.zip",
+      "defaultValue": "https://github.com/uludwig/findable-deploy/releases/download/v3.3.14/findable-3.3.14.zip",
       "metadata": {
         "description": "URL of the Findable application package (a zip of the deploy-package folder). Set by the release; empty leaves the App Service for a workflow deploy."
       }
@@ -167,6 +181,8 @@
     ],
     "deployLocation": "[if(not(empty(parameters('deployRegion'))), parameters('deployRegion'), if(empty(parameters('location')), resourceGroup().location, parameters('location')))]",
     "searchDeployLocation": "[if(empty(parameters('searchLocation')), variables('deployLocation'), parameters('searchLocation'))]",
+    "aiDeployLocation": "[if(empty(parameters('aiLocation')), variables('deployLocation'), parameters('aiLocation'))]",
+    "cosmosDeployLocation": "[if(empty(parameters('cosmosLocation')), variables('deployLocation'), parameters('cosmosLocation'))]",
     "suffix": "[toLower(uniqueString(resourceGroup().id, parameters('baseName')))]",
     "tail": "[take(variables('suffix'), 7)]",
     "storageName": "[toLower(format('{0}{1}', parameters('baseName'), variables('tail')))]",
@@ -395,7 +411,7 @@
       "type": "Microsoft.DocumentDB/databaseAccounts",
       "apiVersion": "2024-11-15",
       "name": "[variables('cosmosName')]",
-      "location": "[variables('deployLocation')]",
+      "location": "[variables('cosmosDeployLocation')]",
       "tags": "[parameters('tags')]",
       "kind": "GlobalDocumentDB",
       "properties": {
@@ -405,7 +421,7 @@
         },
         "locations": [
           {
-            "locationName": "[variables('deployLocation')]",
+            "locationName": "[variables('cosmosDeployLocation')]",
             "failoverPriority": 0,
             "isZoneRedundant": false
           }
@@ -510,7 +526,7 @@
       "type": "Microsoft.CognitiveServices/accounts",
       "apiVersion": "2024-10-01",
       "name": "[variables('foundryName')]",
-      "location": "[variables('deployLocation')]",
+      "location": "[variables('aiDeployLocation')]",
       "tags": "[parameters('tags')]",
       "kind": "AIServices",
       "sku": {

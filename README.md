@@ -25,8 +25,8 @@ license is separate.
 ## Steps
 
 1. Click **Deploy to Azure** and sign in to the Azure portal with an account that can create resources in the subscription. The person who runs the Connect tenant script afterwards must be able to create app registrations and groups in the Entra tenant (Application Administrator and Groups Administrator, or Global Administrator) and hold Contributor on the web app.
-2. Pick the subscription, a resource group, a region where the Azure AI Foundry models you want are offered (an existing resource group pins the region to its own; create a new group to deploy elsewhere), and a deployment name. Basics shows an error when the subscription cannot create the Foundry account or a Cosmos DB account in that region, and when a Key Vault from an earlier install into a resource group of the same name is still soft-deleted (see below). If you change the region after the Summary page refused a validation, also give the resource group a new name: the portal created the group in the first region when it validated, the deployment goes into the group's region, and Basics shows an error when the group you named already exists in another region.
-3. Choose the size and the models, then create. The Size tab can put the search service alone in another region, for a region where Azure AI Search has no capacity left (see below). The wizard checks the names and the region against Azure as you go: a taken name or a model the region does not offer is refused on the field, a missing service or App Service tier shows an error box, and a quota shortfall shows a warning. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
+2. Pick the subscription, a resource group, a region and a deployment name (an existing resource group pins the region to its own; create a new group to deploy elsewhere). No single region offers everything to every subscription, so Basics checks the region as you go and shows an error when the subscription cannot create the Azure AI Foundry account or the Cosmos DB account there, or the region does not offer the models (Findable deploys `gpt-5.6-terra` and `text-embedding-3-small`; nothing to choose). Under each error is a checkbox that creates that one account in another region of your choice while everything else stays in the region you picked: tick it and choose a region the check accepts. Basics also shows an error when a Key Vault from an earlier install into a resource group of the same name is still soft-deleted (see below). Do not change the region once the Summary page has validated: the portal created the resource group then, the deployment goes into the group's region, and the Summary page keeps what it validated; use the checkboxes instead, or start again in a new tab with a new resource group name (Basics shows an error when the group you named already exists in another region).
+3. Choose the size, then create. The Size tab can put the search service alone in another region, for a region where Azure AI Search has no capacity left (see below), and warns when the subscription's model quota in the Foundry account's region is short. The wizard checks the names and the regions against Azure as you go: a missing service, model or App Service tier shows an error box, and a quota shortfall shows a warning. The deployment takes about ten minutes; role assignments can take up to ten more to apply.
 4. Open the deployment's `webAppUrl` output (Outputs on the deployment page: `https://<deployment name>-<7 characters>.azurewebsites.net`; the suffix keeps the name unique across Azure). The site opens on its Connect tenant page (every other prerequisite was met by the template): copy the script, run it in Azure Cloud Shell, and wait. The script creates the two app registrations and the administrators group, writes them onto the web app, and the site opens signed in. Nothing is pasted back unless the script says it could not write the app settings.
 
 ## If the deployment fails
@@ -44,9 +44,20 @@ group's region, so a region changed afterwards needs a new group name too
 (Basics shows an error when the group you named exists in another region).
 
 When the failure was Cosmos DB refusing the region (a capacity or "high
-demand" message), pick another region, or ask Microsoft support for Cosmos DB
-capacity in that one (Help + support, Service and subscription limits
+demand" message), deploy again into a new resource group and tick "Create the
+Cosmos DB account in another region" on Basics, picking a region its check
+accepts: only the Cosmos DB account moves. Or ask Microsoft support for Cosmos
+DB capacity in that one (Help + support, Service and subscription limits
 (quotas), Azure Cosmos DB) and deploy once it is granted.
+
+When the failure was the Foundry account or a model deployment refusing the
+region (the Basics check names the model the region lacks; an install from
+before 2026-11-03 could fail on the Summary page with "The specified SKU
+'Standard' for model 'text-embedding-3-small 1' is not supported in this
+region", which the embedding deployment's `GlobalStandard` SKU has since
+removed), deploy again into a new resource group and tick "Create the Azure AI
+Foundry account in another region" on Basics, picking a region the checks
+accept: only the Foundry account and its two model deployments move.
 
 When the failure was the search service refusing the region with
 `InsufficientResourcesAvailable` ("The region '...' is currently out of the
